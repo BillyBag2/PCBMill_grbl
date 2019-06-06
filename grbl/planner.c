@@ -36,6 +36,7 @@ typedef struct {
                                      // i.e. arcs, canned cycles, and backlash compensation.
   float previous_unit_vec[N_AXIS];   // Unit vector of previous path line segment
   float previous_nominal_speed;  // Nominal speed of previous path line segment
+  int32_t sticky_z;              // HACKSPACE - Added asticky z direction variable.
 } planner_t;
 static planner_t pl;
 
@@ -373,8 +374,30 @@ uint8_t plan_buffer_line(float *target, plan_line_data_t *pl_data)
 	  #endif
     unit_vec[idx] = delta_mm; // Store unit vector numerator
 
+	// HACKSPACE - Make Z direction sticky
     // Set direction bits. Bit enabled always means direction is negative.
-    if (delta_mm < 0.0 ) { block->direction_bits |= get_direction_pin_mask(idx); }
+    if (delta_mm < 0.0 )
+	{ 
+			block->direction_bits |= get_direction_pin_mask(idx);
+			if (idx == 2)
+			{
+				pl.sticky_z = 1; // Remember stickyness
+			}
+	}
+
+	if ((delta_mm > 0.0) && (idx == 2))
+	{
+		pl.sticky_z = 0; // Forget the stick z direction.
+	}
+
+	if ((delta_mm == 0.0) && (idx==2))
+	{
+		// Lets make this sticky
+		if (pl.sticky_z)
+		{
+			block->direction_bits |= get_direction_pin_mask(idx);
+		}
+	}
   }
 
   // Bail if this is a zero-length block. Highly unlikely to occur.
